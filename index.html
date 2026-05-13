@@ -1,0 +1,1010 @@
+﻿<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>비상근무표 작성 시스템</title>
+<script src="xlsx.full.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Malgun Gothic', sans-serif; background: #f0f2f5; color: #333; }
+
+.header { background: #1a3a6c; color: white; padding: 14px 24px; }
+.header h1 { font-size: 20px; font-weight: 700; }
+.header .sub { font-size: 12px; opacity: 0.75; margin-top: 3px; }
+
+.tabs { background: white; border-bottom: 2px solid #e0e4ea; display: flex; padding: 0 20px; }
+.tab { padding: 12px 20px; cursor: pointer; font-size: 14px; font-weight: 500; color: #666; border-bottom: 3px solid transparent; margin-bottom: -2px; }
+.tab.active { color: #1a3a6c; border-bottom-color: #1a3a6c; font-weight: 700; }
+
+.content { max-width: 1400px; margin: 20px auto; padding: 0 16px; }
+.panel { display: none; }
+.panel.active { display: block; }
+
+.card { background: white; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); padding: 20px; margin-bottom: 16px; }
+.card-title { font-size: 15px; font-weight: 700; color: #1a3a6c; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid #e8ecf0; }
+
+.btn { padding: 7px 14px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; }
+.btn:hover { opacity: 0.85; }
+.btn-primary { background: #1a3a6c; color: white; }
+.btn-success { background: #27ae60; color: white; }
+.btn-danger { background: #e74c3c; color: white; }
+.btn-secondary { background: #7f8c8d; color: white; }
+.btn-ghost { background: #eef2ff; color: #1a3a6c; }
+.btn-outline { background: white; color: #1a3a6c; border: 2px solid #1a3a6c; }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+.btn-xs { padding: 2px 7px; font-size: 11px; border-radius: 4px; }
+
+/* Members */
+.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+.role-title { font-size: 14px; font-weight: 700; color: #1a3a6c; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 2px solid #e0e4ea; }
+.member-list { list-style: none; margin-bottom: 8px; min-height: 30px; }
+.member-row { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; border: 1px solid #e8ecf0; border-radius: 6px; margin-bottom: 5px; background: #fafbfc; }
+.add-row { display: flex; gap: 6px; }
+.add-row input { flex: 1; padding: 6px 10px; border: 1px solid #dce0ea; border-radius: 6px; font-size: 13px; outline: none; }
+.add-row input:focus { border-color: #1a3a6c; }
+
+/* Calendar nav */
+.cal-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 10px; }
+.cal-nav-center { display: flex; align-items: center; gap: 10px; }
+.cal-month-label { font-size: 22px; font-weight: 700; color: #1a3a6c; min-width: 170px; text-align: center; }
+.cal-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* Calendar grid */
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+.cal-hdr { text-align: center; padding: 6px 4px; font-size: 12px; font-weight: 700; color: #666; background: #f5f7fa; border-radius: 4px; }
+.cal-hdr.sat { color: #2471a3; }
+.cal-hdr.sun { color: #c0392b; }
+
+.day-cell { border: 1px solid #e0e4ea; border-radius: 6px; padding: 5px 6px; min-height: 160px; cursor: pointer; background: white; transition: box-shadow 0.15s, border-color 0.15s; }
+.day-cell:hover { box-shadow: 0 2px 8px rgba(26,58,108,0.2); border-color: #1a3a6c; }
+.day-cell.empty { background: none; border-color: transparent; cursor: default; pointer-events: none; }
+.day-cell.is-weekend { background: #fff5f5; }
+.day-cell.is-holiday { background: #fff0f0; }
+.day-cell.is-dayoff { background: #f4f4f4; cursor: default; }
+.day-cell.is-dayoff:hover { box-shadow: none; border-color: #e0e4ea; }
+.day-cell.is-today { border: 2px solid #1a3a6c; }
+
+.day-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; }
+.day-num { font-size: 14px; font-weight: 700; color: #333; }
+.day-dow { font-size: 9px; font-weight: 400; color: #999; margin-left: 2px; }
+.day-num.sat { color: #2471a3; }
+.day-num.sun { color: #c0392b; }
+.day-tags { display: flex; gap: 2px; flex-wrap: wrap; }
+.tag { font-size: 9px; font-weight: 700; padding: 1px 4px; border-radius: 6px; }
+.tag-holiday { background: #fde8e8; color: #c0392b; }
+.tag-dayoff { background: #e8e8e8; color: #666; }
+
+/* Shift block in cell */
+.shift-blk { margin-bottom: 5px; }
+.shift-hd { display: flex; align-items: center; gap: 3px; margin-bottom: 2px; }
+.shift-lbl { font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 4px; }
+.lbl-duty { background: #dbeafe; color: #1e40af; }
+.lbl-s1   { background: #dcfce7; color: #166534; }
+.lbl-s2   { background: #fef9c3; color: #854d0e; }
+.shift-time-sm { font-size: 8px; color: #aaa; }
+
+/* Tier rows inside cell */
+.tier-row { display: flex; align-items: baseline; gap: 2px; line-height: 1.45; font-size: 9px; }
+.tier-badge { font-size: 8px; font-weight: 700; padding: 0px 3px; border-radius: 3px; white-space: nowrap; flex-shrink: 0; }
+.tb-C  { background: #dcfce7; color: #166534; }
+.tb-B  { background: #fef9c3; color: #854d0e; }
+.tb-A  { background: #fee2e2; color: #991b1b; }
+.tier-names { color: #444; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.no-assign-txt { font-size: 9px; color: #ccc; }
+
+.dayoff-ctr { display: flex; align-items: center; justify-content: center; height: 100px; }
+.dayoff-lbl { font-size: 13px; font-weight: 700; color: #bbb; letter-spacing: 2px; }
+
+/* Modal */
+.modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.48); z-index: 200; align-items: center; justify-content: center; padding: 16px; }
+.modal-bg.show { display: flex; }
+.modal { background: white; border-radius: 10px; padding: 24px; width: 100%; max-width: 660px; max-height: 92vh; overflow-y: auto; }
+.modal-title { font-size: 18px; font-weight: 700; color: #1a3a6c; }
+.modal-sub { font-size: 12px; color: #888; margin: 4px 0 14px; }
+.modal-footer { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; padding-top: 14px; border-top: 1px solid #e0e4ea; flex-wrap: wrap; }
+
+.toggle-row { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+.tog-btn { padding: 5px 14px; border: 2px solid #dce0ea; border-radius: 20px; cursor: pointer; font-size: 12px; font-weight: 600; background: white; color: #666; }
+.tog-btn.on-dayoff  { border-color: #e74c3c; color: #e74c3c; background: #fef2f2; }
+.tog-btn.on-holiday { border-color: #7c3aed; color: #7c3aed; background: #f5f3ff; }
+
+/* Shift section in modal */
+.shift-sec { margin-bottom: 18px; }
+.shift-sec-hd { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.shift-time-tag { font-size: 11px; background: #f1f5f9; color: #475569; padding: 2px 8px; border-radius: 10px; }
+
+/* Grade tier in modal */
+.grade-tier { border: 1px solid #e0e4ea; border-radius: 8px; padding: 12px; margin-bottom: 8px; }
+.grade-tier-C { border-color: #86efac; background: #f0fdf4; }
+.grade-tier-B { border-color: #fde68a; background: #fffbeb; }
+.grade-tier-A { border-color: #fca5a5; background: #fff1f2; }
+.grade-tier-hd { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 13px; font-weight: 700; }
+.grade-tier-desc { font-size: 11px; color: #888; font-weight: 400; }
+
+.role-assign { margin-bottom: 8px; }
+.role-assign-lbl { font-size: 11px; font-weight: 700; color: #666; margin-bottom: 5px; }
+.chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.chip { padding: 3px 11px; border: 1px solid #dce0ea; border-radius: 14px; cursor: pointer; font-size: 12px; background: white; user-select: none; }
+.chip:hover { border-color: #93c5fd; }
+.chip.on { background: #1a3a6c; color: white; border-color: #1a3a6c; }
+.chip.used { background: #e9ecef; color: #aaa; border-color: #e9ecef; cursor: not-allowed; font-style: italic; }
+.modal-divider { border: none; border-top: 1px dashed #e0e4ea; margin: 14px 0; }
+
+/* Grade summary cards on Tab 1 */
+.grade-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.grade-box { padding: 12px 14px; border-radius: 8px; }
+.grade-box-C { background: #f0fdf4; border: 1px solid #86efac; }
+.grade-box-B { background: #fffbeb; border: 1px solid #fcd34d; }
+.grade-box-A { background: #fff1f2; border: 1px solid #fca5a5; }
+
+/* Legend */
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11px; color: #666; padding: 8px 4px; }
+.leg-item { display: flex; align-items: center; gap: 5px; }
+.leg-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+/* Manual styles */
+.step-box { width: 130px; padding: 12px 10px; border-radius: 8px; text-align: center; flex-shrink: 0; }
+.step-num { width: 26px; height: 26px; border-radius: 50%; background: #4f46e5; color: white; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px; }
+.step-txt { font-size: 11px; color: #444; line-height: 1.6; }
+.step-arrow { display: flex; align-items: center; padding: 0 4px; font-size: 18px; color: #bbb; flex-shrink: 0; }
+.manual-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.manual-table tr { border-bottom: 1px solid #e8ecf0; }
+.manual-table tr:last-child { border-bottom: none; }
+.mt-num { padding: 10px 10px; font-weight: 700; color: #6366f1; white-space: nowrap; vertical-align: top; }
+.mt-head { padding: 10px 14px 10px 0; font-weight: 700; color: #1a3a6c; white-space: nowrap; vertical-align: top; }
+.mt-body { padding: 10px 0; color: #555; line-height: 1.6; vertical-align: top; }
+.grade-card { flex: 1; min-width: 180px; padding: 14px 16px; border-radius: 10px; }
+.gc-C { background: #f0fdf4; border: 1px solid #86efac; }
+.gc-B { background: #fffbeb; border: 1px solid #fcd34d; }
+.gc-A { background: #fff1f2; border: 1px solid #fca5a5; }
+.gc-plus { display: flex; align-items: center; font-size: 24px; color: #aaa; font-weight: 300; padding: 0 4px; }
+.gc-title { font-size: 13px; font-weight: 700; color: #1a3a6c; margin-bottom: 5px; }
+.gc-sub { font-size: 11px; color: #777; margin-bottom: 10px; line-height: 1.5; }
+.gc-roles { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
+.gc-role { font-size: 11px; padding: 2px 9px; border-radius: 12px; background: white; border: 1px solid #d1d5db; color: #374151; }
+.gc-total { font-size: 12px; font-weight: 700; color: #1a3a6c; }
+
+@media (max-width: 1000px) {
+  .grid-4 { grid-template-columns: 1fr 1fr; }
+  .grade-row { grid-template-columns: 1fr; }
+}
+@media (max-width: 600px) {
+  .grid-4 { grid-template-columns: 1fr; }
+  .content { padding: 0 8px; }
+  .step-box { width: 100px; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🚨 비상근무표 작성 시스템</h1>
+  <div class="sub">한국도로공사 · 월간 비상근무 편성표 (C / B / A 등급 전체 사전 편성)</div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('members')">① 조직 구성원</div>
+  <div class="tab" onclick="switchTab('calendar')">② 월간 근무표</div>
+</div>
+
+<div class="content">
+
+  <!-- ===== Tab 1: 조직 구성원 ===== -->
+  <div id="panel-members" class="panel active">
+
+    <!-- 사용 안내 매뉴얼 -->
+    <div class="card" style="border-left:4px solid #1a3a6c">
+      <div class="card-title" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;margin-bottom:0" onclick="toggleManual()">
+        <span>📋 시스템 사용 안내 &amp; 배정 원칙</span>
+        <span id="manual-icon" style="font-size:12px;color:#888;font-weight:400">▼ 펼치기</span>
+      </div>
+      <div id="manual-body" style="display:none;margin-top:18px">
+
+        <!-- 사용 순서 -->
+        <div style="margin-bottom:22px">
+          <div style="font-size:13px;font-weight:700;color:#1a3a6c;margin-bottom:12px;padding-bottom:6px;border-bottom:2px solid #e8ecf0">📌 사용 순서</div>
+          <div style="display:flex;gap:0;flex-wrap:wrap">
+            <div class="step-box" style="background:#eef2ff;border:1px solid #c7d2fe">
+              <div class="step-num">1</div>
+              <div class="step-txt"><b>구성원 등록</b><br>기관장·팀장·차장·대리과장<br>순서대로 등록</div>
+            </div>
+            <div class="step-arrow">▶</div>
+            <div class="step-box" style="background:#f0fdf4;border:1px solid #86efac">
+              <div class="step-num" style="background:#16a34a">2</div>
+              <div class="step-txt"><b>월간 근무표 이동</b><br>② 월간 근무표 탭 선택<br>연월 확인</div>
+            </div>
+            <div class="step-arrow">▶</div>
+            <div class="step-box" style="background:#fffbeb;border:1px solid #fcd34d">
+              <div class="step-num" style="background:#d97706">3</div>
+              <div class="step-txt"><b>공휴일 지정</b><br>해당 날짜 클릭 →<br>공휴일 지정 버튼</div>
+            </div>
+            <div class="step-arrow">▶</div>
+            <div class="step-box" style="background:#fef2f2;border:1px solid #fca5a5">
+              <div class="step-num" style="background:#dc2626">4</div>
+              <div class="step-txt"><b>자동 배정</b><br>⚡ 전체 자동 배정 클릭<br>(또는 날짜별 개별 배정)</div>
+            </div>
+            <div class="step-arrow">▶</div>
+            <div class="step-box" style="background:#f0fdf4;border:1px solid #86efac">
+              <div class="step-num" style="background:#059669">5</div>
+              <div class="step-txt"><b>Excel 저장</b><br>📥 Excel 저장 클릭<br>파일명·위치 지정 후 저장</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 자동 배정 5대 원칙 -->
+        <div style="margin-bottom:22px">
+          <div style="font-size:13px;font-weight:700;color:#1a3a6c;margin-bottom:12px;padding-bottom:6px;border-bottom:2px solid #e8ecf0">⚙️ 자동 배정 5대 원칙</div>
+          <table class="manual-table">
+            <colgroup><col style="width:60px"><col style="width:160px"><col></colgroup>
+            <tbody>
+              <tr>
+                <td class="mt-num">원칙 1</td>
+                <td class="mt-head">구성원 기반 배정</td>
+                <td class="mt-body">「조직 구성원 관리」에 등록된 인원만을 대상으로 배정합니다. 등록되지 않은 인원은 배치되지 않습니다.</td>
+              </tr>
+              <tr>
+                <td class="mt-num">원칙 2</td>
+                <td class="mt-head">등록 순서 순환</td>
+                <td class="mt-body"><b>평일</b>은 등록된 순서대로(1번 → 2번 → …) 순차 순환 배정합니다. 한 달 내내 같은 순서로 돌아갑니다.</td>
+              </tr>
+              <tr>
+                <td class="mt-num">원칙 3</td>
+                <td class="mt-head">주말·공휴일 역순</td>
+                <td class="mt-body"><b>토요일·일요일·공휴일</b>은 등록 순서의 역순(마지막 → … → 1번)으로 배정합니다. 평일과 주말에 서로 다른 인원이 먼저 배치되어 형평성을 높입니다.</td>
+              </tr>
+              <tr>
+                <td class="mt-num">원칙 4</td>
+                <td class="mt-head">연속 근무 제한</td>
+                <td class="mt-body"><b>차장·대리과장</b>은 직전 근무일로부터 <b>3일 이내</b>에 동일인이 재배치되지 않도록 제한합니다. 인원 부족으로 불가피한 경우에만 예외 배정됩니다.</td>
+              </tr>
+              <tr>
+                <td class="mt-num">원칙 5</td>
+                <td class="mt-head">월간 균등 배분</td>
+                <td class="mt-body">순환 방식으로 한 달 총 근무 횟수가 인원 간 <b>최대 2일 이내</b>의 차이만 발생하도록 배분합니다.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- 비상 등급 구조 -->
+        <div>
+          <div style="font-size:13px;font-weight:700;color:#1a3a6c;margin-bottom:12px;padding-bottom:6px;border-bottom:2px solid #e8ecf0">🚨 비상 등급별 편성 구조</div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <div class="grade-card gc-C">
+              <div class="gc-title">C등급 — 기본 당직</div>
+              <div class="gc-sub">평일: 당직 1개조<br>주말·공휴일: 1조 + 2조</div>
+              <div class="gc-roles">
+                <span class="gc-role">차장 1명</span>
+                <span class="gc-role">대리과장 2명</span>
+              </div>
+              <div class="gc-total">총 3명</div>
+            </div>
+            <div class="gc-plus">+</div>
+            <div class="grade-card gc-B">
+              <div class="gc-title">B등급 격상 시 추가</div>
+              <div class="gc-sub">C등급 팀 유지 + 추가 인원</div>
+              <div class="gc-roles">
+                <span class="gc-role">팀장 1명</span>
+                <span class="gc-role">대리과장 1명</span>
+              </div>
+              <div class="gc-total">C포함 총 5명</div>
+            </div>
+            <div class="gc-plus">+</div>
+            <div class="grade-card gc-A">
+              <div class="gc-title">A등급 격상 시 추가</div>
+              <div class="gc-sub">B등급 팀 유지 + 추가 인원</div>
+              <div class="gc-roles">
+                <span class="gc-role">기관장 1명</span>
+                <span class="gc-role">차장 1명</span>
+              </div>
+              <div class="gc-total">B포함 총 7명</div>
+            </div>
+          </div>
+          <div style="font-size:11px;color:#999;margin-top:10px">※ 상위 등급 발령 시 하위 등급 인원이 그대로 이월되며, 추가 인원만 보충 배치됩니다.</div>
+        </div>
+
+      </div>
+    </div>
+    <!-- /사용 안내 매뉴얼 -->
+
+    <div class="card">
+      <div class="card-title">조직 구성원 관리</div>
+      <div class="grid-4" id="member-sections"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">등급별 편성 기준 (비상 발령 시 누적 적용)</div>
+      <div class="grade-row">
+        <div class="grade-box grade-box-C">
+          <div style="font-weight:700;color:#166534;margin-bottom:6px;font-size:13px">C등급 — 기본 당직팀 (3명)</div>
+          <div style="font-size:12px;color:#555;line-height:1.8">차장 1명<br>대리과장 2명</div>
+        </div>
+        <div class="grade-box grade-box-B">
+          <div style="font-weight:700;color:#92400e;margin-bottom:6px;font-size:13px">B등급 격상 시 추가 (2명)</div>
+          <div style="font-size:12px;color:#555;line-height:1.8">팀장 1명<br>대리과장 1명 추가<br><span style="color:#aaa;font-size:11px">→ 총 5명 (C팀 이월)</span></div>
+        </div>
+        <div class="grade-box grade-box-A">
+          <div style="font-weight:700;color:#991b1b;margin-bottom:6px;font-size:13px">A등급 격상 시 추가 (2명)</div>
+          <div style="font-size:12px;color:#555;line-height:1.8">기관장 1명<br>차장 1명 추가<br><span style="color:#aaa;font-size:11px">→ 총 7명 (B팀 이월)</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Tab 2: 월간 근무표 ===== -->
+  <div id="panel-calendar" class="panel">
+    <div class="card">
+      <div class="cal-nav">
+        <div class="cal-nav-center">
+          <button class="btn btn-outline btn-sm" onclick="changeMonth(-1)">◀</button>
+          <div class="cal-month-label" id="month-label"></div>
+          <button class="btn btn-outline btn-sm" onclick="changeMonth(1)">▶</button>
+        </div>
+        <div class="cal-actions">
+          <button class="btn btn-ghost" onclick="autoAssignMonth()">⚡ 전체 자동 배정</button>
+          <button class="btn btn-success" onclick="exportExcel()">📥 Excel 저장</button>
+          <button class="btn btn-danger btn-sm" onclick="clearMonth()">초기화</button>
+        </div>
+      </div>
+      <div class="cal-grid" id="cal-header" style="margin-bottom:4px"></div>
+      <div class="cal-grid" id="cal-body"></div>
+      <div class="legend" style="margin-top:10px">
+        <div class="leg-item"><div class="leg-dot" style="background:#dcfce7;border:1px solid #86efac"></div>C등급 (기본)</div>
+        <div class="leg-item"><div class="leg-dot" style="background:#fef9c3;border:1px solid #fde68a"></div>+B등급 추가</div>
+        <div class="leg-item"><div class="leg-dot" style="background:#fee2e2;border:1px solid #fca5a5"></div>+A등급 추가</div>
+        <div class="leg-item"><div class="leg-dot" style="background:#e8e8e8"></div>휴무일</div>
+        <div class="leg-item" style="margin-left:auto;color:#aaa">셀 클릭 → 근무자 배정</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 날짜 배정 Modal -->
+<div class="modal-bg" id="day-modal" onclick="bgClick(event)">
+  <div class="modal">
+    <div class="modal-title" id="m-title"></div>
+    <div class="modal-sub" id="m-sub"></div>
+    <div class="toggle-row" id="m-toggles"></div>
+    <div id="m-shifts"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost btn-sm" onclick="autoAssignDay()">이 날 자동 배정</button>
+      <button class="btn btn-primary" onclick="saveDay()">저장</button>
+      <button class="btn btn-secondary" onclick="closeModal()">닫기</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== 등급 정의 =====
+// C: 기본 당직팀, B: C이월+추가, A: B이월+추가
+const GRADE_TIERS = {
+  C: { label: 'C등급', labelShort: 'C',  roles: { '차장': 1, '대리과장': 2 }, desc: '기본 당직' },
+  B: { label: '+B등급', labelShort: '+B', roles: { '팀장': 1, '대리과장': 1 }, desc: 'B격상 추가' },
+  A: { label: '+A등급', labelShort: '+A', roles: { '기관장': 1, '차장': 1 }, desc: 'A격상 추가' }
+};
+const TIER_ORDER = ['C', 'B', 'A'];
+const ROLES = ['기관장', '팀장', '차장', '대리과장'];
+const DOW = ['일','월','화','수','목','금','토'];
+const TODAY = new Date().toISOString().slice(0, 10);
+
+// ===== 상태 =====
+let S = {
+  members: { '기관장': [], '팀장': [], '차장': [], '대리과장': [] },
+  schedule: {}
+};
+let curY = new Date().getFullYear();
+let curM = new Date().getMonth() + 1;
+let modalDate = null;
+let mTemp = {};
+
+// ===== 저장/로드 =====
+function loadS() {
+  try { const r = localStorage.getItem('emgv4'); if (r) Object.assign(S, JSON.parse(r)); } catch(e) {}
+}
+function saveS() { localStorage.setItem('emgv4', JSON.stringify(S)); }
+
+// ===== 달 데이터 =====
+function mkKey(y, m) { return `${y}-${String(m).padStart(2,'0')}`; }
+function getMD(key) {
+  if (!S.schedule[key]) S.schedule[key] = { dayoffs: [], holidays: [], days: {} };
+  return S.schedule[key];
+}
+
+// ===== 날짜 메타 =====
+function getMeta(ds) {
+  const d = new Date(ds + 'T12:00:00');
+  const dow = d.getDay();
+  const key = ds.slice(0,7);
+  const md = getMD(key);
+  const isDayoff  = md.dayoffs.includes(ds);
+  const isHoliday = md.holidays.includes(ds);
+  const isWeekend = dow === 0 || dow === 6;
+  const twoShift  = !isDayoff && (isWeekend || isHoliday);
+  return { dow, isWeekend, isDayoff, isHoliday, twoShift };
+}
+
+function shiftDefs(ds) {
+  const m = getMeta(ds);
+  if (m.twoShift) return [
+    { id: 's1', label: '1조', time: '09:00 ~ 18:00',     cls: 'lbl-s1' },
+    { id: 's2', label: '2조', time: '18:00 ~ 익일 09:00', cls: 'lbl-s2' }
+  ];
+  return [{ id: 'duty', label: '당직', time: '', cls: 'lbl-duty' }];
+}
+
+function getAssign(ds) {
+  const key = ds.slice(0,7);
+  return getMD(key).days[ds] || {};
+}
+
+// 특정 근무에서 이미 배정된 모든 이름 목록
+function usedInShift(shiftData) {
+  const used = [];
+  for (const tierData of Object.values(shiftData || {}))
+    for (const names of Object.values(tierData || {}))
+      used.push(...names);
+  return used;
+}
+
+// ===== 달력 렌더링 =====
+function renderCal() {
+  document.getElementById('month-label').textContent = `${curY}년 ${curM}월`;
+  const hdrs = ['월','화','수','목','금','토','일'];
+  document.getElementById('cal-header').innerHTML =
+    hdrs.map((h,i) => `<div class="cal-hdr ${i===5?'sat':i===6?'sun':''}">${h}</div>`).join('');
+
+  const first = new Date(curY, curM-1, 1).getDay();
+  const days  = new Date(curY, curM, 0).getDate();
+  const offset = (first + 6) % 7;
+
+  let cells = Array(offset).fill('<div class="day-cell empty"></div>');
+  for (let d = 1; d <= days; d++) {
+    const ds = `${curY}-${String(curM).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    cells.push(buildCell(ds, d));
+  }
+  document.getElementById('cal-body').innerHTML = cells.join('');
+}
+
+function buildCell(ds, d) {
+  const m  = getMeta(ds);
+  const assign = getAssign(ds);
+  const numCls = m.dow===0?'sun':m.dow===6?'sat':'';
+  const isToday = ds === TODAY;
+
+  let cls = 'day-cell';
+  if (m.isWeekend || m.isHoliday) cls += ' is-weekend';
+  if (m.isHoliday) cls += ' is-holiday';
+  if (m.isDayoff)  cls += ' is-dayoff';
+  if (isToday)     cls += ' is-today';
+
+  let tags = '';
+  if (m.isHoliday) tags += '<span class="tag tag-holiday">공휴일</span>';
+  if (m.isDayoff)  tags += '<span class="tag tag-dayoff">휴무</span>';
+
+  let body = '';
+  if (m.isDayoff) {
+    body = '<div class="dayoff-ctr"><div class="dayoff-lbl">휴 무</div></div>';
+  } else {
+    const shifts = shiftDefs(ds);
+    const hasAny = shifts.some(sh => {
+      const sd = assign[sh.id] || {};
+      return TIER_ORDER.some(t => Object.keys(sd[t] || {}).some(r => (sd[t][r]||[]).length > 0));
+    });
+
+    body = shifts.map(sh => {
+      const sd = assign[sh.id] || {};
+      const tm = sh.time ? `<span class="shift-time-sm">${sh.time.replace(' ~ ', '~').replace(' 익일', '~익')}</span>` : '';
+      let tierRows = '';
+      for (const tier of TIER_ORDER) {
+        const td = sd[tier] || {};
+        const parts = [];
+        for (const role of ROLES) {
+          const ns = td[role] || [];
+          if (ns.length) parts.push(`<span style="color:#888;font-size:8px">${role[0]}</span>${ns.join('·')}`);
+        }
+        if (parts.length) {
+          tierRows += `<div class="tier-row">
+            <span class="tier-badge tb-${tier}">${GRADE_TIERS[tier].labelShort}</span>
+            <span class="tier-names">${parts.join(' ')}</span>
+          </div>`;
+        }
+      }
+      return `<div class="shift-blk">
+        <div class="shift-hd"><span class="shift-lbl ${sh.cls}">${sh.label}</span>${tm}</div>
+        ${tierRows || '<span class="no-assign-txt">미배정</span>'}
+      </div>`;
+    }).join('');
+  }
+
+  const click = `onclick="openModal('${ds}')"`;
+  return `<div class="${cls}" ${click}>
+    <div class="day-top">
+      <div class="day-num ${numCls}">${d}<span class="day-dow">${DOW[m.dow]}</span></div>
+      <div class="day-tags">${tags}</div>
+    </div>
+    ${body}
+  </div>`;
+}
+
+// ===== 모달 =====
+function openModal(ds) {
+  modalDate = ds;
+  const m = getMeta(ds);
+  const [y, mo, d] = ds.split('-');
+  document.getElementById('m-title').textContent = `${y}년 ${parseInt(mo)}월 ${parseInt(d)}일 (${DOW[m.dow]})`;
+  let subs = [];
+  if (m.isWeekend) subs.push('주말');
+  if (m.isHoliday) subs.push('공휴일');
+  subs.push(m.twoShift ? '2개 조 편성' : '단일 당직');
+  document.getElementById('m-sub').textContent = subs.join(' · ');
+  mTemp = JSON.parse(JSON.stringify(getAssign(ds)));
+  renderToggles(ds, m);
+  renderShifts(ds);
+  document.getElementById('day-modal').classList.add('show');
+}
+
+function renderToggles(ds, m) {
+  let html = '';
+  if (!m.isWeekend) {
+    html += `<button class="tog-btn ${m.isHoliday?'on-holiday':''}" onclick="toggleHoliday('${ds}')">
+      ${m.isHoliday ? '✓ 공휴일 해제' : '공휴일 지정'}
+    </button>`;
+  }
+  document.getElementById('m-toggles').innerHTML = html;
+}
+
+function renderShifts(ds) {
+  const m = getMeta(ds);
+  if (m.isDayoff) {
+    document.getElementById('m-shifts').innerHTML =
+      '<div style="text-align:center;color:#aaa;padding:24px;font-size:14px">휴무일 — 근무 배정 없음</div>';
+    return;
+  }
+  const shifts = shiftDefs(ds);
+  let html = '';
+
+  shifts.forEach((sh, si) => {
+    const sd = mTemp[sh.id] || {};
+    const timeTag = sh.time ? `<span class="shift-time-tag">${sh.time}</span>` : '';
+    html += `<div class="shift-sec">
+      <div class="shift-sec-hd">
+        <span class="shift-lbl ${sh.cls}" style="font-size:12px">${sh.label}</span>
+        ${timeTag}
+      </div>`;
+
+    // 이미 이 시프트에서 사용된 인원 (하위 등급에서 배정된 인원)
+    let cumulativeUsed = [];
+
+    TIER_ORDER.forEach(tier => {
+      const tierDef = GRADE_TIERS[tier];
+      const td = sd[tier] || {};
+      const tierColor = tier==='C'?'#166534':tier==='B'?'#92400e':'#991b1b';
+
+      html += `<div class="grade-tier grade-tier-${tier}">
+        <div class="grade-tier-hd">
+          <span class="tier-badge tb-${tier}" style="font-size:11px;padding:2px 7px">${tierDef.label}</span>
+          <span class="grade-tier-desc">${tierDef.desc}</span>
+          ${tier !== 'C' ? `<span style="font-size:10px;color:#aaa">(C${tier==='A'?'/B':''}팀 자동 이월)</span>` : ''}
+        </div>`;
+
+      ROLES.forEach(role => {
+        const need = tierDef.roles[role];
+        if (!need) return;
+        const mems = S.members[role] || [];
+        if (mems.length === 0) return;
+        const sel = td[role] || [];
+
+        html += `<div class="role-assign">
+          <div class="role-assign-lbl">${role} (${need}명)</div>
+          <div class="chips">
+            ${mems.map(n => {
+              const isOn   = sel.includes(n);
+              const isUsed = !isOn && cumulativeUsed.includes(n);
+              return `<div class="chip ${isOn?'on':isUsed?'used':''}"
+                ${isUsed ? '' : `onclick="toggleChip('${sh.id}','${tier}','${role}','${n.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')"`}>
+                ${n}
+              </div>`;
+            }).join('')}
+          </div>
+        </div>`;
+      });
+
+      // 이 tier의 선택 인원을 누적 사용 목록에 추가
+      for (const names of Object.values(td)) cumulativeUsed.push(...names);
+
+      html += '</div>'; // grade-tier
+    });
+
+    html += '</div>'; // shift-sec
+    if (si < shifts.length - 1) html += '<hr class="modal-divider">';
+  });
+
+  document.getElementById('m-shifts').innerHTML = html;
+}
+
+function toggleChip(shiftId, tier, role, name) {
+  if (!mTemp[shiftId]) mTemp[shiftId] = {};
+  if (!mTemp[shiftId][tier]) mTemp[shiftId][tier] = {};
+  if (!mTemp[shiftId][tier][role]) mTemp[shiftId][tier][role] = [];
+  const arr = mTemp[shiftId][tier][role];
+  const i = arr.indexOf(name);
+  if (i >= 0) arr.splice(i, 1); else arr.push(name);
+  renderShifts(modalDate);
+}
+
+function toggleDayoff(ds) {
+  const md = getMD(ds.slice(0,7));
+  const i = md.dayoffs.indexOf(ds);
+  if (i >= 0) md.dayoffs.splice(i, 1);
+  else { md.dayoffs.push(ds); const hi = md.holidays.indexOf(ds); if (hi>=0) md.holidays.splice(hi,1); }
+  saveS(); openModal(ds);
+}
+
+function toggleHoliday(ds) {
+  const md = getMD(ds.slice(0,7));
+  const i = md.holidays.indexOf(ds);
+  if (i >= 0) md.holidays.splice(i, 1); else md.holidays.push(ds);
+  saveS(); openModal(ds);
+}
+
+function saveDay() {
+  if (!modalDate) return;
+  const md = getMD(modalDate.slice(0,7));
+  // 빈 배열 정리
+  const clean = {};
+  for (const [sid, tiers] of Object.entries(mTemp)) {
+    clean[sid] = {};
+    for (const [tier, roles] of Object.entries(tiers)) {
+      clean[sid][tier] = {};
+      for (const [role, names] of Object.entries(roles)) {
+        if (names && names.length) clean[sid][tier][role] = names;
+      }
+      if (!Object.keys(clean[sid][tier]).length) delete clean[sid][tier];
+    }
+    if (!Object.keys(clean[sid]).length) delete clean[sid];
+  }
+  if (Object.keys(clean).length) md.days[modalDate] = clean;
+  else delete md.days[modalDate];
+  saveS(); closeModal(); renderCal();
+}
+
+function closeModal() {
+  document.getElementById('day-modal').classList.remove('show');
+  modalDate = null; mTemp = {};
+}
+function bgClick(e) { if (e.target.id === 'day-modal') closeModal(); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+// ===== 자동 배정 (순차 배정) =====
+
+function dayDiff(ds1, ds2) {
+  const a = new Date(ds1 + 'T12:00'), b = new Date(ds2 + 'T12:00');
+  return Math.round(Math.abs(a - b) / 86400000);
+}
+
+// 기준 2: 등록 순서 / 기준 3: 주말 역순 / 기준 4: 차장·대리과장 3일 이내 중복 금지
+function seqPick(role, count, isWE, ptr, usedSet, lastDate, ds) {
+  const members = S.members[role] || [];
+  const n = members.length;
+  if (!n) return [];
+  const result = [];
+
+  for (let p = 0; p < count; p++) {
+    let chosen = null;
+
+    // 기준 4 적용하여 순서대로 탐색
+    for (let skip = 0; skip < n; skip++) {
+      const idx = isWE ? ((ptr.bwd - skip) % n + n) % n : (ptr.fwd + skip) % n;
+      const name = members[idx];
+      if (usedSet.has(name)) continue;
+      if ((role === '차장' || role === '대리과장') && lastDate[name]
+          && dayDiff(ds, lastDate[name]) <= 3) continue;
+      chosen = { name, advance: skip + 1 };
+      break;
+    }
+
+    // 3일 제약 완화 (후보가 없을 경우)
+    if (!chosen) {
+      for (let skip = 0; skip < n; skip++) {
+        const idx = isWE ? ((ptr.bwd - skip) % n + n) % n : (ptr.fwd + skip) % n;
+        const name = members[idx];
+        if (!usedSet.has(name)) { chosen = { name, advance: skip + 1 }; break; }
+      }
+    }
+
+    if (chosen) {
+      result.push(chosen.name);
+      usedSet.add(chosen.name);
+      if (isWE) ptr.bwd = ((ptr.bwd - chosen.advance) % n + n) % n;
+      else       ptr.fwd = (ptr.fwd + chosen.advance) % n;
+    }
+  }
+  return result;
+}
+
+function autoAssignMonth() {
+  if (!confirm(`${curY}년 ${curM}월 전체를 자동 배정합니다.\nC / B / A 3등급 모두 편성됩니다. 기존 배정이 덮어씌워집니다.`)) return;
+  const key = mkKey(curY, curM);
+  const md  = getMD(key);
+  const daysInMonth = new Date(curY, curM, 0).getDate();
+
+  const ptr = {};
+  for (const role of ROLES) {
+    const n = (S.members[role] || []).length;
+    ptr[role] = { fwd: 0, bwd: Math.max(0, n - 1) };
+  }
+  const lastDate = {};
+  md.days = {};
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const ds = `${curY}-${String(curM).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const meta = getMeta(ds);
+    if (meta.isDayoff) continue;
+
+    const isWE = meta.isWeekend || meta.isHoliday;
+    const shifts = shiftDefs(ds);
+    const usedToday = new Set();
+    md.days[ds] = {};
+
+    for (const sh of shifts) {
+      const shiftRes = {};
+      for (const tier of TIER_ORDER) {
+        shiftRes[tier] = {};
+        for (const [role, count] of Object.entries(GRADE_TIERS[tier].roles)) {
+          const picked = seqPick(role, count, isWE, ptr[role], usedToday, lastDate, ds);
+          if (picked.length) {
+            shiftRes[tier][role] = picked;
+            picked.forEach(nm => { lastDate[nm] = ds; });
+          }
+        }
+      }
+      md.days[ds][sh.id] = shiftRes;
+    }
+  }
+  saveS(); renderCal();
+}
+
+// 이 날 이전의 배정을 재현하여 포인터·마지막배정일 복원
+function restorePtr(md, beforeDs) {
+  const ptr = {};
+  for (const role of ROLES) {
+    const n = (S.members[role] || []).length;
+    ptr[role] = { fwd: 0, bwd: Math.max(0, n - 1) };
+  }
+  const lastDate = {};
+  const sortedDates = Object.keys(md.days).sort();
+  for (const ds of sortedDates) {
+    if (ds >= beforeDs) break;
+    const isWE = getMeta(ds).isWeekend || getMeta(ds).isHoliday;
+    const usedToday = new Set();
+    for (const sh of shiftDefs(ds)) {
+      const sd = (md.days[ds] || {})[sh.id] || {};
+      for (const tier of TIER_ORDER) {
+        for (const role of ROLES) {
+          const names = ((sd[tier] || {})[role]) || [];
+          const members = S.members[role] || [];
+          const n = members.length;
+          for (const nm of names) {
+            if (!usedToday.has(nm)) { usedToday.add(nm); lastDate[nm] = ds; }
+            const idx = members.indexOf(nm);
+            if (idx < 0 || !n) continue;
+            if (isWE) ptr[role].bwd = ((idx - 1) % n + n) % n;
+            else       ptr[role].fwd = (idx + 1) % n;
+          }
+        }
+      }
+    }
+  }
+  return { ptr, lastDate };
+}
+
+function autoAssignDay() {
+  if (!modalDate) return;
+  const meta = getMeta(modalDate);
+  if (meta.isDayoff) return;
+  const key = modalDate.slice(0, 7);
+  const md  = getMD(key);
+  const isWE = meta.isWeekend || meta.isHoliday;
+  const { ptr, lastDate } = restorePtr(md, modalDate);
+
+  const shifts = shiftDefs(modalDate);
+  const usedToday = new Set();
+  mTemp = {};
+  for (const sh of shifts) {
+    const shiftRes = {};
+    for (const tier of TIER_ORDER) {
+      shiftRes[tier] = {};
+      for (const [role, count] of Object.entries(GRADE_TIERS[tier].roles)) {
+        const picked = seqPick(role, count, isWE, ptr[role], usedToday, lastDate, modalDate);
+        if (picked.length) shiftRes[tier][role] = picked;
+      }
+    }
+    mTemp[sh.id] = shiftRes;
+  }
+  renderShifts(modalDate);
+}
+
+function clearMonth() {
+  if (!confirm(`${curY}년 ${curM}월 배정을 모두 초기화합니까?`)) return;
+  const key = mkKey(curY, curM);
+  if (S.schedule[key]) S.schedule[key].days = {};
+  saveS(); renderCal();
+}
+
+function changeMonth(d) {
+  curM += d;
+  if (curM > 12) { curM = 1; curY++; }
+  if (curM < 1)  { curM = 12; curY--; }
+  renderCal();
+}
+
+// ===== Excel 저장 =====
+function exportExcel() {
+  if (typeof XLSX === 'undefined') {
+    alert('Excel 라이브러리를 불러오지 못했습니다.\n페이지를 새로고침 후 다시 시도해주세요.');
+    return;
+  }
+
+  const days = new Date(curY, curM, 0).getDate();
+  const rows = [];
+  rows.push([`${curY}년 ${curM}월 비상근무 편성표`]);
+  rows.push([]);
+  rows.push([
+    '날짜','요일','조','근무시간',
+    '[C] 차장','[C] 대리과장',
+    '[+B] 팀장','[+B] 대리과장',
+    '[+A] 기관장','[+A] 차장',
+    '비고'
+  ]);
+
+  for (let d = 1; d <= days; d++) {
+    const ds = `${curY}-${String(curM).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const m = getMeta(ds);
+    const dow = DOW[m.dow];
+    const label = `${curM}/${d}`;
+
+    if (m.isDayoff) {
+      rows.push([label, dow, '휴무', '', '', '', '', '', '', '', '']);
+      continue;
+    }
+
+    const assign = getAssign(ds);
+    const shifts = shiftDefs(ds);
+    let first = true;
+    shifts.forEach(sh => {
+      const sd = assign[sh.id] || {};
+      const C = sd.C || {};
+      const B = sd.B || {};
+      const A = sd.A || {};
+      const note = m.isHoliday ? '공휴일' : m.isWeekend ? (m.dow===6?'토':'일') : '';
+      rows.push([
+        first ? label : '',
+        first ? dow   : '',
+        sh.label,
+        sh.time,
+        (C['차장']     ||[]).join(', '),
+        (C['대리과장'] ||[]).join(', '),
+        (B['팀장']     ||[]).join(', '),
+        (B['대리과장'] ||[]).join(', '),
+        (A['기관장']   ||[]).join(', '),
+        (A['차장']     ||[]).join(', '),
+        first ? note : ''
+      ]);
+      first = false;
+    });
+  }
+
+  // 월간 근무 횟수 집계
+  rows.push([], ['=== 월간 근무 횟수 집계 ==='], ['성명', '근무 배정 횟수']);
+  const totalCounts = {};
+  const key = mkKey(curY, curM);
+  const md = getMD(key);
+  for (const dayData of Object.values(md.days))
+    for (const shiftData of Object.values(dayData))
+      for (const tierData of Object.values(shiftData))
+        for (const names of Object.values(tierData))
+          for (const n of names) totalCounts[n] = (totalCounts[n]||0)+1;
+
+  Object.entries(totalCounts).sort((a,b)=>b[1]-a[1]).forEach(([name,cnt])=>rows.push([name,cnt]));
+
+  try {
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [8,5,6,18,10,16,10,16,10,10,8].map(w=>({wch:w}));
+    ws['!merges'] = [{ s:{r:0,c:0}, e:{r:0,c:10} }];
+    XLSX.utils.book_append_sheet(wb, ws, `${curM}월 근무표`);
+    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    const blob = new Blob([wbout], { type: mimeType });
+    const fileName = `비상근무표_${curY}년_${curM}월.xlsx`;
+
+    if ('showSaveFilePicker' in window) {
+      window.showSaveFilePicker({
+        suggestedName: fileName,
+        types: [{ description: 'Excel 파일', accept: { [mimeType]: ['.xlsx'] } }]
+      }).then(async handle => {
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        alert(`저장 완료: ${handle.name}`);
+      }).catch(e => { if (e.name !== 'AbortError') alert('저장 실패: ' + e.message); });
+    } else {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = fileName; a.style.display = 'none';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+    }
+  } catch(err) {
+    alert('Excel 저장 중 오류가 발생했습니다:\n' + err.message);
+  }
+}
+
+// ===== 구성원 관리 =====
+function renderMembers() {
+  document.getElementById('member-sections').innerHTML = ROLES.map(role => {
+    const mems = S.members[role] || [];
+    return `<div>
+      <div class="role-title">${role}</div>
+      <ul class="member-list">
+        ${mems.length === 0
+          ? '<li style="color:#bbb;font-size:12px;padding:6px 0">등록된 구성원 없음</li>'
+          : mems.map(n => `<li class="member-row">
+              <span style="font-size:13px">${n}</span>
+              <button class="btn btn-danger btn-xs" onclick="removeMember('${role}','${n.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')">삭제</button>
+            </li>`).join('')}
+      </ul>
+      <div class="add-row">
+        <input type="text" id="inp-${role}" placeholder="${role} 이름"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();event.stopPropagation();addMember('${role}');}">
+        <button class="btn btn-primary btn-sm" onclick="addMember('${role}')">추가</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function addMember(role) {
+  const inp = document.getElementById(`inp-${role}`);
+  const name = inp.value.trim();
+  if (!name) return;
+  if ((S.members[role]||[]).includes(name)) { alert('이미 등록된 이름입니다.'); return; }
+  if (!S.members[role]) S.members[role] = [];
+  S.members[role].push(name);
+  inp.value = '';
+  inp.blur();
+  saveS();
+  setTimeout(() => { renderMembers(); const ni = document.getElementById(`inp-${role}`); if(ni) ni.focus(); }, 0);
+}
+
+function removeMember(role, name) {
+  if (!confirm(`'${name}'을(를) 삭제하시겠습니까?`)) return;
+  S.members[role] = (S.members[role]||[]).filter(n => n !== name);
+  saveS(); renderMembers();
+}
+
+// ===== 매뉴얼 토글 =====
+function toggleManual() {
+  const body = document.getElementById('manual-body');
+  const icon = document.getElementById('manual-icon');
+  const shown = body.style.display !== 'none';
+  body.style.display = shown ? 'none' : 'block';
+  icon.textContent = shown ? '▼ 펼치기' : '▲ 접기';
+}
+
+// ===== 탭 =====
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach((el, i) =>
+    el.classList.toggle('active', ['members','calendar'][i] === tab));
+  document.querySelectorAll('.panel').forEach(el => el.classList.remove('active'));
+  document.getElementById(`panel-${tab}`).classList.add('active');
+  if (tab === 'members') renderMembers();
+  if (tab === 'calendar') renderCal();
+}
+
+// ===== 초기화 =====
+loadS();
+renderMembers();
+renderCal();
+</script>
+</body>
+</html>
